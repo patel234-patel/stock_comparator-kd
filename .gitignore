@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+.env/
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+
+# Backup files
+*.bak
+*.bak2
+
+# Excel
+*.xlsx
+
+# Output folders
+output/
+logs/
+
+# Secrets
+service_account.json
+config.py
