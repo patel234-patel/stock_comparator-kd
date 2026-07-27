@@ -32,7 +32,7 @@ class ComparisonEngine:
             script_name, script_code,
             motilal_buy, motilal_sell,
             angel_buy,   angel_sell,
-            buy_to_sell  (angel_sell  - motilal_buy),
+            buy_to_sell  (motilal_buy - angel_sell),
             sell_to_buy  (angel_buy - motilal_sell),
             best_opp     (label string)
         """
@@ -52,7 +52,7 @@ class ComparisonEngine:
             angel_sell   = ap.get("sell", 0.0)
 
             # Buy on Motilal, sell on Angel
-            buy_to_sell = round(angel_sell - motilal_buy, 4)
+            buy_to_sell = round(motilal_buy - angel_sell, 4)
 
             # Buy on Angel, sell on Motilal
             sell_to_buy = round(angel_buy - motilal_sell, 4)
