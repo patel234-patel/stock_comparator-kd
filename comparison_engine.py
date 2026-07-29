@@ -7,6 +7,7 @@ and returns rows sorted by best opportunity (highest absolute value).
 """
 
 from typing import Dict, List, Optional
+from config import DEFAULT_LOT_SIZE
 
 
 class ComparisonEngine:
@@ -50,18 +51,35 @@ class ComparisonEngine:
             motilal_sell = mp.get("sell", 0.0)
             angel_buy    = ap.get("buy",  0.0)
             angel_sell   = ap.get("sell", 0.0)
+            lot_size = sym.get("lot_size", DEFAULT_LOT_SIZE)
+
+            try:
+                lot_size = int(lot_size)
+            except (TypeError, ValueError):
+                lot_size = DEFAULT_LOT_SIZE
+
+            
 
             # Buy on Motilal, sell on Angel
             buy_to_sell = round(motilal_buy - angel_sell, 4)
 
             # Buy on Angel, sell on Motilal
             sell_to_buy = round(angel_buy - motilal_sell, 4)
+            buy_total = round(buy_to_sell * lot_size, 4)
+            sell_total = round(sell_to_buy * lot_size, 4)
 
-            best = max(buy_to_sell, sell_to_buy)
-            if buy_to_sell >= sell_to_buy:
-                best_opp = f"Buy Angel→Sell MO  {buy_to_sell:+.2f}"
+            best = max(buy_total, sell_total)
+
+            if buy_total >= sell_total:
+                best_opp = (
+                    f"Buy Angel→Sell MO  {buy_to_sell:+.2f}  "
+                    f"(lot: {buy_total:+.2f})"
+                )
             else:
-                best_opp = f"Buy MO→Sell Angel  {sell_to_buy:+.2f}"
+                best_opp = (
+                    f"Buy MO→Sell Angel  {sell_to_buy:+.2f}  "
+                    f"(lot: {sell_total:+.2f})"
+                )
 
             rows.append({
                 "script_name":  name,
@@ -70,8 +88,11 @@ class ComparisonEngine:
                 "motilal_sell": motilal_sell,
                 "angel_buy":    angel_buy,
                 "angel_sell":   angel_sell,
-                "buy_to_sell":  buy_to_sell,
-                "sell_to_buy":  sell_to_buy,
+                "buy_to_sell": buy_to_sell,
+                "buy_total": buy_total,
+                "sell_to_buy": sell_to_buy,
+                "sell_total": sell_total,
+                "lot_size": lot_size,
                 "best_opp":     best_opp,
                 "_sort_key":    best,
             })
