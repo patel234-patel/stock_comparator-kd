@@ -126,8 +126,20 @@ class ExcelLiveWriter:
         prev_su = app.screen_updating
         try:
             app.screen_updating = False
-            self._setup_headers()
-            self._setup_conditional_formatting()
+            # Each wrapped separately: this setup re-runs every time main.py
+            # starts, even against a workbook already formatted by a
+            # previous run. A COM hiccup in one-time formatting (e.g.
+            # merging cells already merged from last run) must not take
+            # down the whole Excel connection — update() doesn't need setup
+            # to have fully succeeded.
+            try:
+                self._setup_headers()
+            except Exception as e:
+                print(f"  [Excel] Warning: header setup failed (likely already set up from a previous run): {e}")
+            try:
+                self._setup_conditional_formatting()
+            except Exception as e:
+                print(f"  [Excel] Warning: conditional formatting setup failed: {e}")
         finally:
             app.screen_updating = prev_su
 
@@ -141,10 +153,13 @@ class ExcelLiveWriter:
         ]
         sh["A1"].value = headers_r1
 
-        sh["C1:D1"].merge()
-        sh["E1:F1"].merge()
-        sh["G1:H1"].merge()
-        sh["I1:J1"].merge()
+        # Merging an already-merged range throws a COM error, and this whole
+        # setup re-runs every time main.py starts against the same
+        # already-formatted workbook from a previous run.
+        for rng in ("C1:D1", "E1:F1", "G1:H1", "I1:J1"):
+            cell = sh[rng]
+            if not cell.api.MergeCells:
+                cell.merge()
 
         r1_colors = [HDR_RANK, HDR_DARK, HDR_ANG, HDR_ANG, HDR_MO, HDR_MO,
                      HDR_DIFF, HDR_DIFF, HDR_DIFF, HDR_DIFF, HDR_DARK]
