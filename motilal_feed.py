@@ -406,8 +406,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 
-from price_log import log_update
-
 try:
     import pyotp
 except ImportError:
@@ -470,8 +468,7 @@ BASE_URL = "https://openapi.motilaloswal.com"
 REST_POLL_INTERVAL = 3.0   # seconds between REST polls per symbol (was 1.5 — too fast)
 REST_POLL_WORKERS  = 15    # concurrent REST requests in flight — keeps a full poll
 # cycle roughly flat as symbol count grows, instead of scaling linearly with N
-# (serial polling of 200 symbols could take 60-90s per cycle; see motilal_feed
-# docstring / price_log.py for the "late updated" symptom this fixes).
+# (serial polling of 200 symbols could take 60-90s per cycle).
 WS_STALE_AFTER     = 600.0  # was 5.0, then 60.0 — still too short: outside
 # market hours the SDK's internal watchdog only reconnects (and re-sends a
 # per-symbol snapshot) roughly every ~6.5 minutes when there's no organic
@@ -683,7 +680,6 @@ class MotilalFeed:
                 return
             e["ts"] = time.time()
             self._ws_prices[name] = e
-        log_update("MOTILAL", "WS", name, e.get("buy"), e.get("sell"), e.get("ltp"))
 
     # ── REST polling (throttled, quiet on repeated errors) ────────────────────
     def _start_rest_poller(self):
@@ -735,7 +731,6 @@ class MotilalFeed:
                 ask = float(d.get("ask", d.get("ltp", 0))) / 100
                 # Clear any stale error record on success
                 self._last_rest_error_ts.pop(name, None)
-                log_update("MOTILAL", "REST", name, bid, ask, ltp)
                 return {"buy": bid, "sell": ask, "ltp": ltp}
             else:
                 self._maybe_print_error(name, f"REST status not SUCCESS: {data.get('message')}")
