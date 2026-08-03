@@ -92,8 +92,8 @@ FORMAT_CONDITION_TEXT_TYPE = 2  # xlCellValue (used for exact-text rank rules)
 
 
 class ExcelLiveWriter:
-    def __init__(self, workbook_name: str = "Arbitrage_Dashboard.xlsx",
-                 sheet_name: str = "Dashboard",
+    def __init__(self, workbook_name: str = "Karmit.xlsx",
+                 sheet_name: str = "Karmit",
                  highlight_names: List[str] = None):
         if xw is None:
             raise ImportError("Run: pip install xlwings")
