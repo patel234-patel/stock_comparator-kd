@@ -24,6 +24,4 @@ venv/
 output/
 logs/
 
-# Secrets
-# service_account.json
-config.py
+
