@@ -266,8 +266,8 @@ MOTILAL_CONFIG = {
     "base_url":       "https://openapi.motilaloswal.com",
 }
 
-EXCEL_WORKBOOK_NAME = "Arbitrage_Dashboard.xlsx"
-EXCEL_SHEET_NAME    = "Dashboard"
+EXCEL_WORKBOOK_NAME = "Vaidik.xlsx"
+EXCEL_SHEET_NAME    = "Vaidik"
 
 OUTPUT_DIR = "output"
 SAVE_EVERY = 60
