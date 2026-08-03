@@ -34,68 +34,22 @@ from threading import Thread
 version = "V.1.1.0"
 
 # ErrorLogs
-try:
-    os.mkdir('Logs')
-except FileExistsError:
-    null = 0
-
-try:   
-    MainPath = os.getcwd()
-    os.chdir('Logs')
-    LogPath = os.getcwd()
-    os.chdir(MainPath)
-except:
-    print('\nError in Assigning Path!!!')
-    sys.exit()
-
-
+# PATCHED (vendored copy): the three functions below used to write one line
+# per call to a per-day .Log file in a 'Logs' folder (case-insensitively the
+# same folder as this project's own `logs/`, on Windows), via a chdir/open/
+# chdir-back dance on every single call site (~200 of them across this SDK).
+# That both piled up log files on every run and raced on `os.chdir` — a
+# process-global — if two threads (e.g. the WS broadcast thread and a REST
+# call) logged concurrently. No caller inspects these functions' return
+# value, so turning them into no-ops is safe at every call site.
 def WriteIntoLog(f_status, f_filename, f_message):
-    try:
-        dt = datetime.now()
-        x = dt.strftime("%Y-%m-%d %H:%M:%S")
-        logmessage = str(x) + ("             ") + f_status + ("             ") + f_filename + ("             ") + f_message + "\n"
-        os.chdir(LogPath)
-        strdate = datetime.now()
-        Logfile = open(str(strdate.strftime("%d-%b-%Y")) + "_OpenApiLibrary(python).Log","a+")
-        os.chdir(MainPath)
-        Logfile.write(logmessage)
-        Logfile.close()
-    except Exception as e:
-        # PATCHED (vendored copy): upstream called sys.exit() here, which would
-        # kill the entire trading process on a transient log-write failure
-        # (locked file, disk full, AV scan) — a logging hiccup must never take
-        # down the live feed. Just report and continue.
-        print(f'\n[MOFSLOPENAPI] Warning: failed to write log: {e}')
+    pass
 
 def WriteIntoLog_Broadcast(f_status, f_filename, f_message):
-    try:
-        dt = datetime.now()
-        x = dt.strftime("%Y-%m-%d %H:%M:%S")
-        logmessage = str(x) + ("             ") + f_status + ("             ") + f_filename + ("             ") + f_message + "\n"
-        os.chdir(LogPath)
-        strdate = datetime.now()
-        Logfile = open(str(strdate.strftime("%d-%b-%Y")) + "_OpenApiBroadcast(python).Log","a+")
-        os.chdir(MainPath)
-        Logfile.write(logmessage)
-        Logfile.close()
-    except Exception as e:
-        # PATCHED (vendored copy): see WriteIntoLog above.
-        print(f'\n[MOFSLOPENAPI] Warning: failed to write broadcast log: {e}')
+    pass
 
 def WriteIntoLog_TradeStatus(f_status, f_filename, f_message):
-    try:
-        dt = datetime.now()
-        x = dt.strftime("%Y-%m-%d %H:%M:%S")
-        logmessage = str(x) + ("             ") + f_status + ("             ") + f_filename + ("             ") + f_message + "\n"
-        os.chdir(LogPath)
-        strdate = datetime.now()
-        Logfile = open(str(strdate.strftime("%d-%b-%Y")) + "_OpenApiTradeStatus(python).Log","a+")
-        os.chdir(MainPath)
-        Logfile.write(logmessage)
-        Logfile.close()
-    except Exception as e:
-        # PATCHED (vendored copy): see WriteIntoLog above.
-        print(f'\n[MOFSLOPENAPI] Warning: failed to write trade-status log: {e}')
+    pass
 
 
 # def WriteIntoLog(f_status, f_filename, f_message):

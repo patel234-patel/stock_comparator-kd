@@ -9,6 +9,7 @@ pip install smartapi-python pyotp
 
 import pyotp
 import threading
+import logzero
 from SmartApi import SmartConnect
 from SmartApi.smartWebSocketV2 import SmartWebSocketV2
 
@@ -35,6 +36,11 @@ class AngelOneFeed:
     def connect(self):
         cfg = self.config
         self._api = SmartConnect(api_key=cfg["api_key"])
+        # SmartConnect.__init__ unconditionally points logzero's default
+        # logger at logs/<today>/app.log (no constructor flag to disable
+        # it) — detach it immediately so nothing keeps accumulating a new
+        # dated folder every run.
+        logzero.logfile(None)
 
         totp = pyotp.TOTP(cfg["totp_secret"]).now()
         data = self._api.generateSession(

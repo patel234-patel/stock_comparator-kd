@@ -4,6 +4,7 @@ __pycache__/
 
 # Virtual environments
 venv/
+.venv/
 .env/
 
 # VS Code
@@ -24,5 +25,5 @@ output/
 logs/
 
 # Secrets
-service_account.json
+# service_account.json
 config.py

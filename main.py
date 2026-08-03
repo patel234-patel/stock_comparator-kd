@@ -1,7 +1,7 @@
 """
 main.py — Real-Time Arbitrage Dashboard
 =======================================
-Dual output: Google Sheets (every ~1.5s) + Live Excel (every tick ~100ms)
+Live Excel output, updated every tick (~100ms).
 """
 
 import time
@@ -12,23 +12,21 @@ from typing import Dict
 
 from config import (
     SYMBOLS, MARKET_OPEN, MARKET_CLOSE,
-    REFRESH_INTERVAL, SHEET_WRITE_INTERVAL, DIFF_THRESHOLD,
+    REFRESH_INTERVAL,
     ANGEL_ONE_CONFIG, MOTILAL_CONFIG,
-    GOOGLE_CREDENTIALS_FILE, SPREADSHEET_ID, WORKSHEET_NAME,
     EXCEL_WORKBOOK_NAME, EXCEL_SHEET_NAME,
-    ENABLE_GOOGLE_SHEET, ENABLE_EXCEL, DEMO_MODE,
+    ENABLE_EXCEL, DEMO_MODE,
+    HIGHLIGHT_SYMBOLS,
 )
 from angel_feed import AngelOneFeed
 from motilal_feed import MotilalFeed
 from comparison_engine import ComparisonEngine
-from google_sheet_writer import GoogleSheetWriter
 from excel_live_writer import ExcelLiveWriter
 
 logging.basicConfig(
     level=logging.WARNING,          # suppress INFO noise from websocket libs
     format="%(asctime)s  %(levelname)-8s  %(message)s",
     handlers=[
-        logging.FileHandler("arbitrage.log"),
         logging.StreamHandler(),
     ]
 )
@@ -98,7 +96,7 @@ def main():
     print("  Real-Time Arbitrage Dashboard: Angel One vs Motilal Oswal")
     if DEMO_MODE:
         print("  ⚠️  DEMO MODE — using fake prices (set DEMO_MODE=False in config.py)")
-    print(f"  Symbols: {len(SYMBOLS)}  |  Poll: {REFRESH_INTERVAL}s  |  Sheet: {SHEET_WRITE_INTERVAL}s")
+    print(f"  Symbols: {len(SYMBOLS)}  |  Poll: {REFRESH_INTERVAL}s")
     print("=" * 65)
 
     engine = ComparisonEngine(SYMBOLS)
@@ -107,13 +105,13 @@ def main():
         angel   = AngelOneFeed(ANGEL_ONE_CONFIG)
         motilal = MotilalFeed(MOTILAL_CONFIG)
 
-        print("\n[1/4] Connecting to Angel One ...")
+        print("\n[1/3] Connecting to Angel One ...")
         try:
             angel.connect()
         except Exception as e:
             log.error(f"Angel One connect failed: {e}")
 
-        print("[2/4] Connecting to Motilal Oswal ...")
+        print("[2/3] Connecting to Motilal Oswal ...")
         try:
             motilal.connect()
         except Exception as e:
@@ -121,33 +119,17 @@ def main():
     else:
         angel   = None
         motilal = None
-        print("\n[1/4] DEMO: skipping Angel One connection")
-        print("[2/4] DEMO: skipping Motilal connection")
+        print("\n[1/3] DEMO: skipping Angel One connection")
+        print("[2/3] DEMO: skipping Motilal connection")
 
-    print("[3/4] Connecting to Google Sheets ...")
-    gsheet = None
-    if ENABLE_GOOGLE_SHEET:
-        try:
-            gsheet = GoogleSheetWriter(
-                credentials_file=GOOGLE_CREDENTIALS_FILE,
-                spreadsheet_id=SPREADSHEET_ID,
-                worksheet_name=WORKSHEET_NAME,
-                diff_threshold=DIFF_THRESHOLD,
-                min_write_interval=SHEET_WRITE_INTERVAL,
-            )
-        except Exception as e:
-            log.error(f"Google Sheets connect failed: {e}")
-    else:
-        print("  ⏭️  Google Sheets DISABLED (ENABLE_GOOGLE_SHEET=False in config.py)")
-
-    print("[4/4] Connecting to Excel (live workbook) ...")
+    print("[3/3] Connecting to Excel (live workbook) ...")
     excel = None
     if ENABLE_EXCEL:
         try:
             excel = ExcelLiveWriter(
                 workbook_name=EXCEL_WORKBOOK_NAME,
                 sheet_name=EXCEL_SHEET_NAME,
-                diff_threshold=DIFF_THRESHOLD,
+                highlight_names=HIGHLIGHT_SYMBOLS,
             )
         except Exception as e:
             log.error(f"Excel connect failed: {e}")
@@ -156,11 +138,9 @@ def main():
 
     print(f"\nRunning:")
     print(f"  📊 Excel  → {'LIVE every tick' if excel  else 'DISABLED'}")
-    print(f"  🌐 Sheets → {'every ~'+str(SHEET_WRITE_INTERVAL)+'s' if gsheet else 'DISABLED'}")
     print(f"  Press Ctrl+C to stop.\n")
 
     tick         = 0
-    sheet_pushes = 0
     excel_writes = 0
     last_ranked  = []
 
@@ -215,16 +195,6 @@ def main():
 
             last_ranked = [dict(r) for r in ranked]
 
-            # ── Google Sheets ──────────────────────────────────────────────────
-            sheet_pushed = False
-            if gsheet:
-                try:
-                    sheet_pushed = gsheet.update(ranked)
-                    if sheet_pushed:
-                        sheet_pushes += 1
-                except Exception as e:
-                    log.warning(f"Sheets error: {e}")
-
             # ── Excel (always, instant) ────────────────────────────────────────
             if excel:
                 try:
@@ -237,7 +207,6 @@ def main():
             elapsed = (time.time() - t0) * 1000
             top     = ranked[0]
             demo_tag = " [DEMO]" if DEMO_MODE else ""
-            sheet_icon = "✅" if sheet_pushed else ("⏳" if gsheet else "❌")
             excel_icon = f"📊{excel_writes}" if excel else "❌"
             print(
                 f"\r  #{tick:5d}  {datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]}"
@@ -245,7 +214,7 @@ def main():
                 f"  {top['script_name'][:18]:<18}"
                 f"  B2S:{top['buy_to_sell']:+6.2f}"
                 f"  S2B:{top['sell_to_buy']:+6.2f}"
-                f"  {sheet_icon}Sheet  {excel_icon}Excel"
+                f"  {excel_icon}Excel"
                 f"  [{elapsed:.0f}ms]        ",
                 end="", flush=True,
             )

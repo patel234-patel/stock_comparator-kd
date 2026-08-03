@@ -65,8 +65,8 @@ def _bgr(rgb_tuple):
 
 ROW_GREEN  = rgb(198, 239, 206)
 ROW_RED    = rgb(255, 199, 206)
-ROW_YELLOW = rgb(255, 235, 156)
 ROW_WHITE  = rgb(255, 255, 255)
+ROW_HIGHLIGHT = rgb(255, 242, 0)   # bright yellow — watchlisted symbols
 
 HDR_DARK  = rgb(13,  51,  73)
 HDR_MO    = rgb(17,  85, 204)
@@ -93,17 +93,18 @@ FORMAT_CONDITION_TEXT_TYPE = 2  # xlCellValue (used for exact-text rank rules)
 
 class ExcelLiveWriter:
     def __init__(self, workbook_name: str = "Arbitrage_Dashboard.xlsx",
-                 sheet_name: str = "Dashboard", diff_threshold: float = 2.0):
+                 sheet_name: str = "Dashboard",
+                 highlight_names: List[str] = None):
         if xw is None:
             raise ImportError("Run: pip install xlwings")
 
         self._wb_name    = workbook_name
         self._sh_name    = sheet_name
-        self._threshold  = diff_threshold
         self._lock       = threading.Lock()
         self._last_rows  = 0
         self._wb         = None
         self._sh         = None
+        self._highlight_names = highlight_names or []
 
         self._connect()
 
@@ -230,17 +231,26 @@ class ExcelLiveWriter:
         except Exception:
             pass
 
-        # Row fill: green if best per-unit diff > 0, yellow if within
-        # threshold (magnitude), else red. Mirrors the original logic:
+        # Watchlist highlight — takes priority over the green/red profit
+        # fill below (StopIfTrue=True), so a highlighted symbol stays
+        # visible regardless of which side of the trade it's on.
+        if self._highlight_names:
+            esc = lambda s: s.replace('"', '""')
+            conditions = ",".join(f'$B{row0}="{esc(n)}"' for n in self._highlight_names)
+            fc = row_range.api.FormatConditions.Add(
+                Type=XL_EXPRESSION, Formula1=f"=OR({conditions})"
+            )
+            fc.Interior.Color = _bgr(ROW_HIGHLIGHT)
+            fc.Font.Bold = True
+            fc.StopIfTrue = True
+
+        # Row fill: green if best per-unit diff > 0, else red.
         #   best_val = max(buy_to_sell, sell_to_buy)   (columns G, I)
-        rules = [
-            (f"=MAX($G{row0},$I{row0})>0", ROW_GREEN),
-            (f"=AND(MAX($G{row0},$I{row0})<=0,ABS(MAX($G{row0},$I{row0}))>={self._threshold})", ROW_YELLOW),
-        ]
-        for formula, color in rules:
-            fc = row_range.api.FormatConditions.Add(Type=XL_EXPRESSION, Formula1=formula)
-            fc.Interior.Color = _bgr(color)
-            fc.StopIfTrue = False
+        fc = row_range.api.FormatConditions.Add(
+            Type=XL_EXPRESSION, Formula1=f"=MAX($G{row0},$I{row0})>0"
+        )
+        fc.Interior.Color = _bgr(ROW_GREEN)
+        fc.StopIfTrue = False
         # Fallback / default fill = red, applied as a plain (non-conditional)
         # background so rows with no other rule matching still read as red.
         row_range.color = ROW_RED
