@@ -17,11 +17,14 @@ from config import (
     EXCEL_WORKBOOK_NAME, EXCEL_SHEET_NAME,
     ENABLE_EXCEL, DEMO_MODE,
     HIGHLIGHT_SYMBOLS,
+    ENABLE_WEB_DASHBOARD, WEB_HOST, WEB_HTTP_PORT, WEB_WS_PORT, DIFF_THRESHOLD,
+    SHARD, SHARD_COUNT, SHARD_LABEL,
 )
 from angel_feed import AngelOneFeed
 from motilal_feed import MotilalFeed
 from comparison_engine import ComparisonEngine
 from excel_live_writer import ExcelLiveWriter
+from web_dashboard import WebDashboard
 
 logging.basicConfig(
     level=logging.WARNING,          # suppress INFO noise from websocket libs
@@ -96,6 +99,12 @@ def main():
     print("  Real-Time Arbitrage Dashboard: Angel One vs Motilal Oswal")
     if DEMO_MODE:
         print("  ⚠️  DEMO MODE — using fake prices (set DEMO_MODE=False in config.py)")
+    if SHARD:
+        print(f"  🔀 SHARD {SHARD} of {SHARD_COUNT} — this process handles only its "
+              f"own slice of symbols, on its own broker accounts.")
+        print(f"     Range: {SYMBOLS[0]['name']}  →  {SYMBOLS[-1]['name']}")
+    else:
+        print("  ℹ️  Single-process mode (SHARD unset) — all symbols on one account.")
     print(f"  Symbols: {len(SYMBOLS)}  |  Poll: {REFRESH_INTERVAL}s")
     print("=" * 65)
 
@@ -136,12 +145,26 @@ def main():
     else:
         print("  ⏭️  Excel DISABLED (ENABLE_EXCEL=False in config.py)")
 
+    dashboard = None
+    if ENABLE_WEB_DASHBOARD:
+        try:
+            dashboard = WebDashboard(
+                host=WEB_HOST, http_port=WEB_HTTP_PORT, ws_port=WEB_WS_PORT,
+                diff_threshold=DIFF_THRESHOLD, shard_label=SHARD_LABEL,
+            )
+        except Exception as e:
+            log.error(f"Web dashboard start failed: {e}")
+    else:
+        print("  ⏭️  Web dashboard DISABLED (ENABLE_WEB_DASHBOARD=False in config.py)")
+
     print(f"\nRunning:")
     print(f"  📊 Excel  → {'LIVE every tick' if excel  else 'DISABLED'}")
+    print(f"  🌐 Web    → {f'http://{WEB_HOST}:{WEB_HTTP_PORT}' if dashboard else 'DISABLED'}")
     print(f"  Press Ctrl+C to stop.\n")
 
     tick         = 0
     excel_writes = 0
+    dash_writes  = 0
     last_ranked  = []
 
     try:
@@ -165,14 +188,22 @@ def main():
 
             # ── If one broker has no data yet, use LTP for both sides ──────────
             # This means Excel shows partial data rather than staying empty
+            # Note the `is not None` guards: a quote dict can carry an
+            # explicit "ltp": None (a Motilal WS entry that has only seen
+            # MarketDepth ticks has bid/ask but no last-traded price), and
+            # .get("ltp", 0) does NOT fall back to 0 for that — the key is
+            # present, so it returns the None. Copying that across as a
+            # price is what used to blow up the comparison engine.
             all_names = {s["name"] for s in SYMBOLS}
             for name in all_names:
                 if name not in angel_snap and name in motilal_snap:
-                    ltp = motilal_snap[name].get("ltp", 0)
-                    angel_snap[name] = {"buy": ltp, "sell": ltp}
+                    ltp = motilal_snap[name].get("ltp")
+                    if ltp is not None:
+                        angel_snap[name] = {"buy": ltp, "sell": ltp}
                 if name not in motilal_snap and name in angel_snap:
-                    ltp = angel_snap[name].get("ltp", 0)
-                    motilal_snap[name] = {"buy": ltp, "sell": ltp}
+                    ltp = angel_snap[name].get("ltp")
+                    if ltp is not None:
+                        motilal_snap[name] = {"buy": ltp, "sell": ltp}
 
             if not angel_snap and not motilal_snap:
                 print(
@@ -203,11 +234,23 @@ def main():
                 except Exception as e:
                     log.warning(f"Excel error: {e}")
 
+            # ── Web dashboard (broadcast to every connected browser tab) ───────
+            if dashboard:
+                try:
+                    dashboard.broadcast(
+                        ranked, highlight_names=HIGHLIGHT_SYMBOLS,
+                        ts=datetime.datetime.now().isoformat(),
+                    )
+                    dash_writes += 1
+                except Exception as e:
+                    log.warning(f"Web dashboard error: {e}")
+
             # ── Status line ────────────────────────────────────────────────────
             elapsed = (time.time() - t0) * 1000
             top     = ranked[0]
             demo_tag = " [DEMO]" if DEMO_MODE else ""
             excel_icon = f"📊{excel_writes}" if excel else "❌"
+            dash_icon  = f"🌐{dash_writes}" if dashboard else "❌"
             print(
                 f"\r  #{tick:5d}  {datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]}"
                 f"{demo_tag}"
@@ -215,6 +258,7 @@ def main():
                 f"  B2S:{top['buy_to_sell']:+6.2f}"
                 f"  S2B:{top['sell_to_buy']:+6.2f}"
                 f"  {excel_icon}Excel"
+                f"  {dash_icon}Web"
                 f"  [{elapsed:.0f}ms]        ",
                 end="", flush=True,
             )
@@ -234,6 +278,8 @@ def main():
             except Exception: pass
         if excel:
             excel.disconnect()
+        if dashboard:
+            dashboard.stop()
         print("Done.")
 
 

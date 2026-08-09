@@ -47,10 +47,25 @@ class ComparisonEngine:
             if ap is None or mp is None:
                 continue
 
-            motilal_buy  = mp.get("buy",  0.0)
-            motilal_sell = mp.get("sell", 0.0)
-            angel_buy    = ap.get("buy",  0.0)
-            angel_sell   = ap.get("sell", 0.0)
+            motilal_buy  = mp.get("buy")
+            motilal_sell = mp.get("sell")
+            angel_buy    = ap.get("buy")
+            angel_sell   = ap.get("sell")
+
+            # A price can legitimately be absent OR present-but-None — a
+            # Motilal WS quote that has only seen MarketDepth ticks carries
+            # "ltp": None, and main.py's cross-broker LTP fallback can copy
+            # that None straight into the other broker's side.
+            #
+            # Skip the symbol rather than defaulting to 0.0: a 0.0 stand-in
+            # manufactures a spread the size of the whole contract (buy
+            # 3000 - sell 0 = +3000), and because rows are ranked by that
+            # number it would sort to the top and read as the single best
+            # opportunity on screen. No data has to mean no row.
+            if not all(isinstance(v, (int, float)) and not isinstance(v, bool)
+                       for v in (motilal_buy, motilal_sell, angel_buy, angel_sell)):
+                continue
+
             lot_size = sym.get("lot_size", DEFAULT_LOT_SIZE)
 
             try:

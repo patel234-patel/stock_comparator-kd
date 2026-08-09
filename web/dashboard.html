@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Arbitrage Dashboard — Angel One vs Motilal Oswal</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page:           #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --muted:          #898781;
+    --gridline:       #e1e0d9;
+    --border:         rgba(11,11,11,0.10);
+    --good:           #0ca30c;
+    --warning:        #fab219;
+    --critical:       #d03b3b;
+    --gold:           #b8860b;
+    --silver:         #767676;
+    --bronze:         #a05a2c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page:           #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --muted:          #898781;
+      --gridline:       #2c2c2a;
+      --border:         rgba(255,255,255,0.10);
+      --gold:           #e0b53d;
+      --silver:         #b7b7b7;
+      --bronze:         #c98a55;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page:           #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --muted:          #898781;
+    --gridline:       #2c2c2a;
+    --border:         rgba(255,255,255,0.10);
+    --gold:           #e0b53d;
+    --silver:         #b7b7b7;
+    --bronze:         #c98a55;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    overflow-x: hidden;
+  }
+
+  .app { display: flex; flex-direction: column; height: 100vh; }
+
+  header {
+    flex: 0 0 auto;
+    display: flex; align-items: center; gap: 16px;
+    padding: 10px 16px;
+    background: var(--surface-1);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  h1 { font-size: 15px; font-weight: 700; margin: 0; white-space: nowrap; }
+  .sub { color: var(--text-secondary); font-size: 12px; }
+
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 600;
+    padding: 4px 10px; border-radius: 999px;
+    background: var(--page); border: 1px solid var(--border);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+
+  /* Only rendered when this process is running as a shard — makes two
+     side-by-side tabs tellable apart without reading the symbol list. */
+  .shard-pill {
+    display: inline-flex; align-items: center;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.02em;
+    padding: 4px 10px; border-radius: 999px;
+    color: var(--gold);
+    background: var(--page); border: 1px solid var(--gold);
+  }
+  .shard-pill:empty { display: none; }
+  .dot.live { background: var(--good); box-shadow: 0 0 0 0 rgba(12,163,12,.6); animation: pulse 1.6s infinite; }
+  .dot.connecting { background: var(--warning); }
+  .dot.dead { background: var(--critical); }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0   rgba(12,163,12,.5); }
+    70%  { box-shadow: 0 0 0 6px rgba(12,163,12,0); }
+    100% { box-shadow: 0 0 0 0   rgba(12,163,12,0); }
+  }
+
+  .spacer { flex: 1 1 auto; }
+
+  input#filter {
+    font: inherit; font-size: 13px;
+    padding: 6px 10px; border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--page); color: var(--text-primary);
+    min-width: 200px;
+  }
+  input#filter::placeholder { color: var(--muted); }
+
+  button#theme-toggle {
+    font: inherit; font-size: 12px; font-weight: 600;
+    padding: 6px 10px; border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--page); color: var(--text-primary);
+    cursor: pointer;
+  }
+  button#theme-toggle:hover { background: var(--surface-1); }
+
+  .table-wrap { flex: 1 1 auto; overflow: auto; }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: var(--surface-1);
+    color: var(--text-secondary);
+    font-size: 11px; font-weight: 700; letter-spacing: .03em;
+    text-transform: uppercase;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  thead tr.group th {
+    font-size: 10px;
+    color: var(--muted);
+    padding-top: 6px; padding-bottom: 6px;
+  }
+  th.num, td.num { text-align: right; }
+  th.center, td.center { text-align: center; }
+
+  tbody td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--gridline);
+    white-space: nowrap;
+  }
+  tbody tr { background: var(--surface-1); }
+  tbody tr.good     { background: color-mix(in srgb, var(--good) 14%, var(--surface-1)); border-left: 3px solid var(--good); }
+  tbody tr.warning  { background: color-mix(in srgb, var(--warning) 16%, var(--surface-1)); border-left: 3px solid var(--warning); }
+  tbody tr.critical { background: color-mix(in srgb, var(--critical) 12%, var(--surface-1)); border-left: 3px solid var(--critical); }
+  tbody tr.highlighted { background: color-mix(in srgb, var(--warning) 32%, var(--surface-1)); border-left: 3px solid var(--gold); }
+
+  .rank { font-weight: 700; color: var(--text-secondary); }
+  .rank.r1 { color: var(--gold); }
+  .rank.r2 { color: var(--silver); }
+  .rank.r3 { color: var(--bronze); }
+
+  .script { font-weight: 600; text-align: left; }
+  .star { color: var(--gold); margin-right: 4px; }
+
+  .pos { color: var(--good); font-weight: 600; }
+  .neg { color: var(--critical); font-weight: 600; }
+
+  .best-opp { color: var(--text-secondary); font-size: 12px; text-align: left; }
+
+  footer {
+    flex: 0 0 auto;
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+    padding: 8px 16px;
+    background: var(--surface-1);
+    border-top: 1px solid var(--border);
+    font-size: 11px; color: var(--text-secondary);
+  }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; }
+  .swatch.good     { background: var(--good); }
+  .swatch.warning  { background: var(--warning); }
+  .swatch.critical { background: var(--critical); }
+  .swatch.highlighted { background: var(--gold); }
+
+  .empty-state {
+    padding: 40px; text-align: center; color: var(--muted); font-size: 13px;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Arbitrage Dashboard</h1>
+    <span class="sub">Angel One vs Motilal Oswal</span>
+    <span class="shard-pill" id="shard-label">__SHARD_LABEL__</span>
+    <span class="status-pill"><span class="dot connecting" id="dot"></span><span id="status-text">Connecting…</span></span>
+    <span class="sub" id="last-update">No data yet</span>
+    <span class="sub" id="symbol-count"></span>
+    <div class="spacer"></div>
+    <input id="filter" type="text" placeholder="Filter symbol…" />
+    <button id="theme-toggle" type="button">Toggle theme</button>
+  </header>
+
+  <div class="table-wrap">
+    <table id="grid">
+      <thead>
+        <tr class="group">
+          <th>#</th>
+          <th>Script</th>
+          <th colspan="2" class="center">Angel One</th>
+          <th colspan="2" class="center">Motilal Oswal</th>
+          <th colspan="2" class="center">Buy MO → Sell Angel</th>
+          <th colspan="2" class="center">Buy Angel → Sell MO</th>
+          <th>Best Opportunity</th>
+        </tr>
+        <tr>
+          <th>#</th>
+          <th>Script</th>
+          <th class="num">Buy</th>
+          <th class="num">Sell</th>
+          <th class="num">Buy</th>
+          <th class="num">Sell</th>
+          <th class="num">Diff</th>
+          <th class="num">Lot Total</th>
+          <th class="num">Diff</th>
+          <th class="num">Lot Total</th>
+          <th>Best Opportunity</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty-state" id="empty-state">Waiting for the first tick from the Python feed…</div>
+  </div>
+
+  <footer>
+    <span class="legend-item"><span class="swatch good"></span> Profitable</span>
+    <span class="legend-item"><span class="swatch warning"></span> Unprofitable, within threshold</span>
+    <span class="legend-item"><span class="swatch critical"></span> Unprofitable, beyond threshold</span>
+    <span class="legend-item"><span class="swatch highlighted"></span> Watchlisted</span>
+    <div class="spacer"></div>
+    <span id="tick-count">0 ticks</span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const WS_PORT = __WS_PORT__;
+
+  // Put the shard in the tab title too — the header pill is invisible once
+  // the tab is in the background, which is exactly when you're switching
+  // between the two and most likely to pick the wrong one.
+  const shardLabel = document.getElementById("shard-label").textContent.trim();
+  if (shardLabel) document.title = shardLabel + " — Arbitrage Dashboard";
+  const wsUrl = (location.protocol === "https:" ? "wss://" : "ws://") + location.hostname + ":" + WS_PORT + "/";
+
+  const dot         = document.getElementById("dot");
+  const statusText  = document.getElementById("status-text");
+  const lastUpdateEl= document.getElementById("last-update");
+  const symbolCountEl = document.getElementById("symbol-count");
+  const rowsEl      = document.getElementById("rows");
+  const emptyState  = document.getElementById("empty-state");
+  const filterInput = document.getElementById("filter");
+  const themeToggle  = document.getElementById("theme-toggle");
+  const tickCountEl = document.getElementById("tick-count");
+
+  let latest = null;       // last payload received
+  let lastMsgAt = 0;
+  let tickCount = 0;
+  let filterText = "";
+  let renderQueued = false;
+
+  // ---- theme toggle ----
+  const savedTheme = localStorage.getItem("dashboard-theme");
+  if (savedTheme) document.documentElement.setAttribute("data-theme", savedTheme);
+  themeToggle.addEventListener("click", () => {
+    const cur = document.documentElement.getAttribute("data-theme");
+    const next = cur === "dark" ? "light" : (cur === "light" ? null : "dark");
+    if (next) {
+      document.documentElement.setAttribute("data-theme", next);
+      localStorage.setItem("dashboard-theme", next);
+    } else {
+      document.documentElement.removeAttribute("data-theme");
+      localStorage.removeItem("dashboard-theme");
+    }
+  });
+
+  filterInput.addEventListener("input", () => {
+    filterText = filterInput.value.trim().toUpperCase();
+    scheduleRender();
+  });
+
+  function fmt(n) {
+    if (n === null || n === undefined || isNaN(n)) return "—";
+    return Number(n).toFixed(2);
+  }
+
+  function rowStatusClass(row, diffThreshold) {
+    if (row.highlighted) return "highlighted";
+    const best = Math.max(row.buy_total ?? -Infinity, row.sell_total ?? -Infinity);
+    if (best > 0) return "good";
+    if (Math.abs(best) <= diffThreshold) return "warning";
+    return "critical";
+  }
+
+  function rankClass(i) {
+    if (i === 0) return "rank r1";
+    if (i === 1) return "rank r2";
+    if (i === 2) return "rank r3";
+    return "rank";
+  }
+
+  function render() {
+    renderQueued = false;
+    if (!latest || !latest.rows) return;
+
+    const diffThreshold = latest.diff_threshold ?? 50;
+    const rows = latest.rows;
+    symbolCountEl.textContent = rows.length + " symbols";
+
+    const visible = filterText
+      ? rows.filter(r => (r.script_name || "").toUpperCase().includes(filterText))
+      : rows;
+
+    if (visible.length === 0) {
+      rowsEl.innerHTML = "";
+      emptyState.style.display = "block";
+      emptyState.textContent = filterText ? "No symbols match \"" + filterInput.value + "\"." : "Waiting for the first tick from the Python feed…";
+      return;
+    }
+    emptyState.style.display = "none";
+
+    const html = new Array(visible.length);
+    for (let i = 0; i < visible.length; i++) {
+      const r = visible[i];
+      const rank = rows.indexOf(r) + 1;
+      const cls = rowStatusClass(r, diffThreshold);
+      const b2s = r.buy_to_sell ?? 0;
+      const s2b = r.sell_to_buy ?? 0;
+      html[i] =
+        '<tr class="' + cls + '">' +
+        '<td class="center"><span class="' + rankClass(rank - 1) + '">#' + rank + '</span></td>' +
+        '<td class="script">' + (r.highlighted ? '<span class="star">★</span>' : '') + escapeHtml(r.script_name) + '</td>' +
+        '<td class="num">' + fmt(r.angel_buy) + '</td>' +
+        '<td class="num">' + fmt(r.angel_sell) + '</td>' +
+        '<td class="num">' + fmt(r.motilal_buy) + '</td>' +
+        '<td class="num">' + fmt(r.motilal_sell) + '</td>' +
+        '<td class="num ' + (b2s > 0 ? "pos" : "neg") + '">' + fmt(b2s) + '</td>' +
+        '<td class="num ' + (r.buy_total > 0 ? "pos" : "neg") + '">' + fmt(r.buy_total) + '</td>' +
+        '<td class="num ' + (s2b > 0 ? "pos" : "neg") + '">' + fmt(s2b) + '</td>' +
+        '<td class="num ' + (r.sell_total > 0 ? "pos" : "neg") + '">' + fmt(r.sell_total) + '</td>' +
+        '<td class="best-opp">' + escapeHtml(r.best_opp || "") + '</td>' +
+        '</tr>';
+    }
+    rowsEl.innerHTML = html.join("");
+  }
+
+  function scheduleRender() {
+    if (renderQueued) return;
+    renderQueued = true;
+    requestAnimationFrame(render);
+  }
+
+  const escDiv = document.createElement("div");
+  function escapeHtml(s) {
+    escDiv.textContent = s == null ? "" : String(s);
+    return escDiv.innerHTML;
+  }
+
+  function setStatus(state, text) {
+    dot.className = "dot " + state;
+    statusText.textContent = text;
+  }
+
+  function relativeTime(ms) {
+    const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+    if (s < 2) return "just now";
+    if (s < 60) return s + "s ago";
+    return Math.round(s / 60) + "m ago";
+  }
+
+  setInterval(() => {
+    if (lastMsgAt) {
+      lastUpdateEl.textContent = "Updated " + relativeTime(lastMsgAt);
+      const idleMs = Date.now() - lastMsgAt;
+      if (idleMs > 10000 && dot.classList.contains("live")) {
+        setStatus("dead", "No updates for " + Math.round(idleMs / 1000) + "s");
+      }
+    }
+  }, 1000);
+
+  // ---- WebSocket connection with auto-reconnect ----
+  let backoff = 500;
+  function connect() {
+    setStatus("connecting", "Connecting…");
+    let ws;
+    try {
+      ws = new WebSocket(wsUrl);
+    } catch (e) {
+      scheduleReconnect();
+      return;
+    }
+
+    ws.onopen = () => {
+      backoff = 500;
+      setStatus("live", "Live");
+    };
+
+    ws.onmessage = (evt) => {
+      try {
+        const payload = JSON.parse(evt.data);
+        if (payload.type === "update") {
+          latest = payload;
+          lastMsgAt = Date.now();
+          tickCount++;
+          tickCountEl.textContent = tickCount + " ticks";
+          setStatus("live", "Live");
+          scheduleRender();
+        }
+      } catch (e) { /* ignore malformed frame */ }
+    };
+
+    ws.onclose = () => {
+      setStatus("dead", "Disconnected — retrying…");
+      scheduleReconnect();
+    };
+
+    ws.onerror = () => {
+      ws.close();
+    };
+  }
+
+  function scheduleReconnect() {
+    setTimeout(connect, backoff);
+    backoff = Math.min(backoff * 1.6, 8000);
+  }
+
+  connect();
+})();
+</script>
+</body>
+</html>
