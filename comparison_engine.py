@@ -52,9 +52,10 @@ class ComparisonEngine:
             angel_buy    = ap.get("buy")
             angel_sell   = ap.get("sell")
 
-            # A price can legitimately be absent OR present-but-None — both
-            # feeds return buy/sell as None until a real bid/ask tick has
-            # arrived (they no longer stand in with ltp for a missing side).
+            # A price can legitimately be absent OR present-but-None — Angel
+            # returns buy/sell as None until a real bid/ask tick has arrived,
+            # and Motilal returns None until it has an ltp (its buy/sell are
+            # the ltp on both sides — see motilal_feed.get_quote).
             #
             # Skip the symbol rather than defaulting to 0.0: a 0.0 stand-in
             # manufactures a spread the size of the whole contract (buy

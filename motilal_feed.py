@@ -781,19 +781,22 @@ class MotilalFeed:
         now        = time.time()
         ws_fresh   = ws_q and (now - ws_q.get("ts", 0)) < WS_STALE_AFTER
         rest_fresh = rest_q is not None
-        # buy/sell must be the real WS MarketDepth bid/ask, or nothing at
-        # all — never ltp standing in disguised as a buy/sell price. That
-        # used to happen here (buy/sell defaulted to ltp when a MarketDepth
-        # tick hadn't arrived yet, and REST used ltp for both outright,
-        # since getltpdata has no real bid/ask fields). It made the buy/sell
-        # columns silently show ltp with no way to tell it apart from a real
-        # quote. comparison_engine.py already skips any row where
-        # motilal_buy/motilal_sell isn't a real number, so returning None
-        # here means "no row" instead of "a fake row."
-        if ws_fresh:
-            return {"buy": ws_q.get("buy"), "sell": ws_q.get("sell"), "ltp": ws_q.get("ltp")}
-        if rest_fresh:
-            return {"buy": None, "sell": None, "ltp": rest_q.get("ltp")}
+        # Motilal buy/sell are reported AS the ltp — both sides carry the
+        # last traded price, not the MarketDepth bid/ask. Motilal's REST
+        # getltpdata has no bid/ask fields at all and the WS MarketDepth
+        # ticks are patchy, so ranking against a real bid/ask meant most
+        # symbols never produced a row. ltp is the one price that is always
+        # there, so it is what the buy and sell columns show.
+        #
+        # ltp is still the gate: comparison_engine.py skips any row whose
+        # motilal_buy/motilal_sell isn't a real number, so no ltp means no
+        # row rather than a 0.0 stand-in.
+        if ws_fresh and ws_q.get("ltp") is not None:
+            ltp = ws_q["ltp"]
+            return {"buy": ltp, "sell": ltp, "ltp": ltp}
+        if rest_fresh and rest_q.get("ltp") is not None:
+            ltp = rest_q["ltp"]
+            return {"buy": ltp, "sell": ltp, "ltp": ltp}
         return None
 
     def disconnect(self):
