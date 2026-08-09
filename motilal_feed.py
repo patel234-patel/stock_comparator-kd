@@ -760,19 +760,14 @@ class MotilalFeed:
         now        = time.time()
         ws_fresh   = ws_q and (now - ws_q.get("ts", 0)) < WS_STALE_AFTER
         rest_fresh = rest_q is not None
-        # Prefer WS whenever it's fresh, full stop — WS carries a real
-        # bid/ask spread; REST is always a synthetic buy=sell=ltp duplicate
-        # (getltpdata has no bid/ask fields). REST polls continuously, so
-        # it almost always has a newer timestamp than WS — the old
-        # `ws_q["ts"] >= rest_q["ts"]` tie-breaker meant REST's fake data
-        # won out over WS's real data the moment REST refreshed, discarding
-        # a real spread in favor of a fake one within seconds of receiving it.
+        # Dashboard wants Motilal's buy/sell columns to both show LTP
+        # (not the real WS bid/ask spread), so both branches return
+        # buy=sell=ltp regardless of source.
         if ws_fresh:
-            return {"buy": ws_q.get("buy", ws_q.get("ltp")),
-                    "sell": ws_q.get("sell", ws_q.get("ltp")),
-                    "ltp": ws_q.get("ltp")}
+            ltp = ws_q.get("ltp")
+            return {"buy": ltp, "sell": ltp, "ltp": ltp}
         if rest_fresh:
-            return {"buy": rest_q["buy"], "sell": rest_q["sell"], "ltp": rest_q["ltp"]}
+            return {"buy": rest_q["ltp"], "sell": rest_q["ltp"], "ltp": rest_q["ltp"]}
         return None
 
     def disconnect(self):

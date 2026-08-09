@@ -87,12 +87,12 @@ class ComparisonEngine:
 
             if buy_total >= sell_total:
                 best_opp = (
-                    f"Buy Angel→Sell MO  {buy_to_sell:+.2f}  "
+                    f"Buy Alpha→Sell Beta  {buy_to_sell:+.2f}  "
                     f"(lot: {buy_total:+.2f})"
                 )
             else:
                 best_opp = (
-                    f"Buy MO→Sell Angel  {sell_to_buy:+.2f}  "
+                    f"Buy Beta→Sell Alpha  {sell_to_buy:+.2f}  "
                     f"(lot: {sell_total:+.2f})"
                 )
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Arbitrage Dashboard — Angel One vs Motilal Oswal</title>
+<title>Arbitrage Dashboard — Alpha vs Beta</title>
 <style>
   :root {
     color-scheme: light;
@@ -35,6 +35,12 @@
       --silver:         #b7b7b7;
       --bronze:         #c98a55;
     }
+    :root:where(:not([data-theme="light"])) tbody tr.good,
+    :root:where(:not([data-theme="light"])) tbody tr.warning,
+    :root:where(:not([data-theme="light"])) tbody tr.critical,
+    :root:where(:not([data-theme="light"])) tbody tr.highlighted {
+      background: var(--surface-1);
+    }
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
@@ -48,6 +54,12 @@
     --gold:           #e0b53d;
     --silver:         #b7b7b7;
     --bronze:         #c98a55;
+  }
+  :root[data-theme="dark"] tbody tr.good,
+  :root[data-theme="dark"] tbody tr.warning,
+  :root[data-theme="dark"] tbody tr.critical,
+  :root[data-theme="dark"] tbody tr.highlighted {
+    background: var(--surface-1);
   }
 
   * { box-sizing: border-box; }
@@ -161,7 +173,7 @@
   .rank.r2 { color: var(--silver); }
   .rank.r3 { color: var(--bronze); }
 
-  .script { font-weight: 600; text-align: left; }
+  .script { font-weight: 600; text-align: left; width: 1%; white-space: nowrap; }
   .star { color: var(--gold); margin-right: 4px; }
 
   .pos { color: var(--good); font-weight: 600; }
@@ -193,7 +205,7 @@
 <div class="app">
   <header>
     <h1>Arbitrage Dashboard</h1>
-    <span class="sub">Angel One vs Motilal Oswal</span>
+    <span class="sub">Alpha vs Beta</span>
     <span class="shard-pill" id="shard-label">__SHARD_LABEL__</span>
     <span class="status-pill"><span class="dot connecting" id="dot"></span><span id="status-text">Connecting…</span></span>
     <span class="sub" id="last-update">No data yet</span>
@@ -208,24 +220,24 @@
       <thead>
         <tr class="group">
           <th>#</th>
-          <th>Script</th>
-          <th colspan="2" class="center">Angel One</th>
-          <th colspan="2" class="center">Motilal Oswal</th>
-          <th colspan="2" class="center">Buy MO → Sell Angel</th>
-          <th colspan="2" class="center">Buy Angel → Sell MO</th>
+          <th class="script">Script</th>
+          <th colspan="2" class="center">Lot Total</th>
+          <th colspan="2" class="center">Alpha</th>
+          <th colspan="2" class="center">Beta</th>
+          <th colspan="2" class="center">Diff</th>
           <th>Best Opportunity</th>
         </tr>
         <tr>
           <th>#</th>
-          <th>Script</th>
+          <th class="script">Script</th>
+          <th class="num">Beta→Alpha</th>
+          <th class="num">Alpha→Beta</th>
           <th class="num">Buy</th>
           <th class="num">Sell</th>
           <th class="num">Buy</th>
           <th class="num">Sell</th>
-          <th class="num">Diff</th>
-          <th class="num">Lot Total</th>
-          <th class="num">Diff</th>
-          <th class="num">Lot Total</th>
+          <th class="num">Beta→Alpha</th>
+          <th class="num">Alpha→Beta</th>
           <th>Best Opportunity</th>
         </tr>
       </thead>
@@ -344,14 +356,14 @@
         '<tr class="' + cls + '">' +
         '<td class="center"><span class="' + rankClass(rank - 1) + '">#' + rank + '</span></td>' +
         '<td class="script">' + (r.highlighted ? '<span class="star">★</span>' : '') + escapeHtml(r.script_name) + '</td>' +
+        '<td class="num ' + (r.buy_total > 0 ? "pos" : "neg") + '">' + fmt(r.buy_total) + '</td>' +
+        '<td class="num ' + (r.sell_total > 0 ? "pos" : "neg") + '">' + fmt(r.sell_total) + '</td>' +
         '<td class="num">' + fmt(r.angel_buy) + '</td>' +
         '<td class="num">' + fmt(r.angel_sell) + '</td>' +
         '<td class="num">' + fmt(r.motilal_buy) + '</td>' +
         '<td class="num">' + fmt(r.motilal_sell) + '</td>' +
         '<td class="num ' + (b2s > 0 ? "pos" : "neg") + '">' + fmt(b2s) + '</td>' +
-        '<td class="num ' + (r.buy_total > 0 ? "pos" : "neg") + '">' + fmt(r.buy_total) + '</td>' +
         '<td class="num ' + (s2b > 0 ? "pos" : "neg") + '">' + fmt(s2b) + '</td>' +
-        '<td class="num ' + (r.sell_total > 0 ? "pos" : "neg") + '">' + fmt(r.sell_total) + '</td>' +
         '<td class="best-opp">' + escapeHtml(r.best_opp || "") + '</td>' +
         '</tr>';
     }

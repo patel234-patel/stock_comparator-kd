@@ -18,7 +18,7 @@ DEMO_MODE           = False    # True  = use fake prices (no broker needed)
 # ══════════════════════════════════════════════════════════════════
 
 # ── Speed controls ──────────────────────────────────────────────────────────────
-REFRESH_INTERVAL     = 0.1   # poll prices every 0.1s (10x per second)
+REFRESH_INTERVAL     = 0.2   # poll prices every 0.1s (10x per second)
 
 # Diff magnitude (₹, per-lot total) below which an unprofitable row shows
 # yellow instead of red on the web dashboard.
