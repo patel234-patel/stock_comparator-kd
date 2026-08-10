@@ -289,7 +289,7 @@ MOTILAL_ACCOUNTS = [
         "market_api_key": "Lv5ALt875Fs4PF7z",
         "api_secret_key": "8485fb96-b8bc-4612-8d68-d57c8c2d2106",
         "client_code":    "VD208",
-        "password":       "Ipo@1234",
+        "password":       "Ipo@12",
         "two_fa":         "AOYPV8973K",
         "totp_secret":    "5L3X7OCMNXH2YTRFQGOK74L2MZLTAUC7",
         "base_url":       "https://openapi.motilaloswal.com",
