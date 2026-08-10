@@ -720,32 +720,53 @@ class MotilalFeed:
             return None
         headers = self._common_headers(self._auth_token, self._access_token)
         payload = {"exchange": "NSEFO", "scripcode": sym["mo_scrip"]}
+
         try:
             resp = requests.post(f"{BASE_URL}/rest/report/v3/getltpdata",
                                  json=payload, headers=headers, timeout=5)
+        except requests.exceptions.Timeout:
+            self._maybe_print_error(name, "request timed out (5s)")
+            return None
+        except requests.exceptions.RequestException as e:
+            self._maybe_print_error(name, f"network error: {e}")
+            return None
+
+        # Motilal's REST returns an empty body outside market hours rather
+        # than a JSON error — that used to surface as a cryptic
+        # "Expecting value: line 1 column 1" from resp.json(). Call it what
+        # it is: no data, not a failure.
+        if not resp.text.strip():
+            self._maybe_print_error(name, "empty response — market closed or no data yet", quiet=True)
+            return None
+
+        try:
             data = resp.json()
-            if data.get("status") == "SUCCESS":
-                d   = data["data"]
-                ltp = float(d.get("ltp", 0)) / 100
-                bid = float(d.get("bid", d.get("ltp", 0))) / 100
-                ask = float(d.get("ask", d.get("ltp", 0))) / 100
-                # Clear any stale error record on success
-                self._last_rest_error_ts.pop(name, None)
-                return {"buy": bid, "sell": ask, "ltp": ltp}
-            else:
-                self._maybe_print_error(name, f"REST status not SUCCESS: {data.get('message')}")
-        except Exception as e:
-            self._maybe_print_error(name, str(e))
+        except ValueError:
+            self._maybe_print_error(name, f"non-JSON response: {resp.text[:80]!r}")
+            return None
+
+        if data.get("status") == "SUCCESS":
+            d   = data["data"]
+            ltp = float(d.get("ltp", 0)) / 100
+            bid = float(d.get("bid", d.get("ltp", 0))) / 100
+            ask = float(d.get("ask", d.get("ltp", 0))) / 100
+            # Clear any stale error record on success
+            self._last_rest_error_ts.pop(name, None)
+            return {"buy": bid, "sell": ask, "ltp": ltp}
+        else:
+            self._maybe_print_error(name, f"REST status not SUCCESS: {data.get('message')}")
         return None
 
-    def _maybe_print_error(self, name: str, msg: str):
-        """Print REST errors at most once per _REST_ERR_QUIET seconds per symbol."""
+    def _maybe_print_error(self, name: str, msg: str, quiet: bool = False):
+        """Print REST errors at most once per _REST_ERR_QUIET seconds per
+        symbol. `quiet=True` labels it as expected/no-data rather than an
+        error, so off-hours empty responses don't read like a real failure."""
         now  = time.time()
         last = self._last_rest_error_ts.get(name, 0)
         if now - last >= self._REST_ERR_QUIET:
-            # Shorten the error message — no need for the full stack
             short = msg.split("\n")[0][:120]
-            print(f"  [MO] REST error ({name}): {short}")
+            tag = "REST" if quiet else "REST error"
+            print(f"  [MO] {tag} ({name}): {short}")
             self._last_rest_error_ts[name] = now
 
     # ── Public API ─────────────────────────────────────────────────────────────
@@ -760,14 +781,19 @@ class MotilalFeed:
         now        = time.time()
         ws_fresh   = ws_q and (now - ws_q.get("ts", 0)) < WS_STALE_AFTER
         rest_fresh = rest_q is not None
-        # Dashboard wants Motilal's buy/sell columns to both show LTP
-        # (not the real WS bid/ask spread), so both branches return
-        # buy=sell=ltp regardless of source.
+        # buy/sell must be the real WS MarketDepth bid/ask, or nothing at
+        # all — never ltp standing in disguised as a buy/sell price. That
+        # used to happen here (buy/sell defaulted to ltp when a MarketDepth
+        # tick hadn't arrived yet, and REST used ltp for both outright,
+        # since getltpdata has no real bid/ask fields). It made the buy/sell
+        # columns silently show ltp with no way to tell it apart from a real
+        # quote. comparison_engine.py already skips any row where
+        # motilal_buy/motilal_sell isn't a real number, so returning None
+        # here means "no row" instead of "a fake row."
         if ws_fresh:
-            ltp = ws_q.get("ltp")
-            return {"buy": ltp, "sell": ltp, "ltp": ltp}
+            return {"buy": ws_q.get("buy"), "sell": ws_q.get("sell"), "ltp": ws_q.get("ltp")}
         if rest_fresh:
-            return {"buy": rest_q["ltp"], "sell": rest_q["ltp"], "ltp": rest_q["ltp"]}
+            return {"buy": None, "sell": None, "ltp": rest_q.get("ltp")}
         return None
 
     def disconnect(self):

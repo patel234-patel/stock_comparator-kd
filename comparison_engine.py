@@ -52,10 +52,9 @@ class ComparisonEngine:
             angel_buy    = ap.get("buy")
             angel_sell   = ap.get("sell")
 
-            # A price can legitimately be absent OR present-but-None — a
-            # Motilal WS quote that has only seen MarketDepth ticks carries
-            # "ltp": None, and main.py's cross-broker LTP fallback can copy
-            # that None straight into the other broker's side.
+            # A price can legitimately be absent OR present-but-None — both
+            # feeds return buy/sell as None until a real bid/ask tick has
+            # arrived (they no longer stand in with ltp for a missing side).
             #
             # Skip the symbol rather than defaulting to 0.0: a 0.0 stand-in
             # manufactures a spread the size of the whole contract (buy

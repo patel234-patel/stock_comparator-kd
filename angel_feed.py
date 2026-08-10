@@ -100,8 +100,8 @@ class AngelOneFeed:
             buy_data  = message.get("best_5_buy_data",  [])
             sell_data = message.get("best_5_sell_data", [])
 
-            best_bid = (buy_data[0].get("price",  0) / 100) if buy_data  else ltp
-            best_ask = (sell_data[0].get("price", 0) / 100) if sell_data else ltp
+            best_bid = (buy_data[0].get("price",  0) / 100) if buy_data  else None
+            best_ask = (sell_data[0].get("price", 0) / 100) if sell_data else None
 
             with self._lock:
                 self._prices[name] = {"buy": best_bid, "sell": best_ask, "ltp": ltp}

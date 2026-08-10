@@ -44,15 +44,10 @@ def is_market_open() -> bool:
 def build_price_snapshot(feed, symbol_list) -> Dict[str, dict]:
     snapshot = {}
     for sym in symbol_list:
-        name = sym["name"]
-        if hasattr(feed, "get_quote"):
-            quote = feed.get_quote(name)
-            if quote:
-                snapshot[name] = quote
-                continue
-        ltp = feed.get_price(name)
-        if ltp is not None:
-            snapshot[name] = {"buy": ltp, "sell": ltp}
+        name  = sym["name"]
+        quote = feed.get_quote(name)
+        if quote:
+            snapshot[name] = quote
     return snapshot
 
 
@@ -185,25 +180,6 @@ def main():
             else:
                 angel_snap   = build_price_snapshot(angel,   SYMBOLS) if angel   else {}
                 motilal_snap = build_price_snapshot(motilal, SYMBOLS) if motilal else {}
-
-            # ── If one broker has no data yet, use LTP for both sides ──────────
-            # This means Excel shows partial data rather than staying empty
-            # Note the `is not None` guards: a quote dict can carry an
-            # explicit "ltp": None (a Motilal WS entry that has only seen
-            # MarketDepth ticks has bid/ask but no last-traded price), and
-            # .get("ltp", 0) does NOT fall back to 0 for that — the key is
-            # present, so it returns the None. Copying that across as a
-            # price is what used to blow up the comparison engine.
-            all_names = {s["name"] for s in SYMBOLS}
-            for name in all_names:
-                if name not in angel_snap and name in motilal_snap:
-                    ltp = motilal_snap[name].get("ltp")
-                    if ltp is not None:
-                        angel_snap[name] = {"buy": ltp, "sell": ltp}
-                if name not in motilal_snap and name in angel_snap:
-                    ltp = angel_snap[name].get("ltp")
-                    if ltp is not None:
-                        motilal_snap[name] = {"buy": ltp, "sell": ltp}
 
             if not angel_snap and not motilal_snap:
                 print(
