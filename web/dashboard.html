@@ -131,7 +131,65 @@
   }
   button#theme-toggle:hover { background: var(--surface-1); }
 
+  /* Profit strip — pinned between header and table.
+     The top four paying opportunities, computed over every row in the
+     payload (never the filtered subset), so they stay on screen no matter
+     where the table is scrolled to or what is typed in the filter.
+     Loss-making rows never appear here — see profitSide().
+
+     Grid, not flex: four equal columns regardless of how long the symbols
+     inside them are. minmax(0,1fr) is what keeps a long name from widening
+     its own column. Four slots are always rendered — an empty slot holds
+     its width, so the strip never re-flows as opportunities come and go. */
+  .extremes {
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  @media (max-width: 760px) {
+    .extremes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  .ex-tile {
+    min-width: 0;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center; gap: 3px;
+    padding: 12px 14px;
+    background: var(--surface-1);
+    border-left: 3px solid transparent;
+    cursor: pointer;
+    text-align: center;
+    font: inherit; color: inherit;
+  }
+  .ex-tile:hover { background: var(--page); }
+  /* Direction is carried by the left edge alone — no tag text on the tile.
+     The full name and direction are on the tile's tooltip. */
+  .ex-tile.dir-ab { border-left-color: var(--gold); }
+  .ex-tile.dir-ba { border-left-color: var(--bronze); }
+  .ex-sym {
+    max-width: 100%;
+    font-size: 14px; font-weight: 800; letter-spacing: .03em;
+    text-transform: uppercase;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .ex-value {
+    font-size: 22px; font-weight: 700; line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+  }
+  .ex-tile.ex-empty { cursor: default; }
+  .ex-tile.ex-empty:hover { background: var(--surface-1); }
+  .ex-empty .ex-value { color: var(--muted); font-weight: 600; }
+
   .table-wrap { flex: 1 1 auto; overflow: auto; }
+
+  /* Marks the row a tile jumped to. Static, not an animation: the tbody is
+     rebuilt from scratch on every tick, so a keyframe would restart several
+     times a second and strobe. */
+  tbody tr.jumped td {
+    box-shadow: inset 0 0 0 9999px color-mix(in srgb, var(--gold) 22%, transparent);
+  }
 
   table {
     border-collapse: collapse;
@@ -215,6 +273,8 @@
     <button id="theme-toggle" type="button">Toggle theme</button>
   </header>
 
+  <div class="extremes" id="extremes"></div>
+
   <div class="table-wrap">
     <table id="grid">
       <thead>
@@ -276,6 +336,7 @@
   const rowsEl      = document.getElementById("rows");
   const emptyState  = document.getElementById("empty-state");
   const filterInput = document.getElementById("filter");
+  const extremesEl  = document.getElementById("extremes");
   const themeToggle  = document.getElementById("theme-toggle");
   const tickCountEl = document.getElementById("tick-count");
 
@@ -325,6 +386,99 @@
     return "rank";
   }
 
+  // ---- pinned extremes strip ----
+
+  // Four tiles: the best and worst standing spread in each direction, over
+  // every row in the payload. Ranked by lot total (the actual rupee number
+  // per lot) — ranking by per-share diff would put a 200-lot symbol above a
+  // 5200-lot one that is worth 20x more.
+  const EX_COUNT = 4;
+
+  // "HYUNDAI 25-AUG-2026" → "HYUNDAI", "M&M 25-AUG-2026" → "M&M".
+  // The leading run of symbol characters, so the expiry — and anything else
+  // after the first space — is dropped for every symbol without a per-name
+  // special case. Falls back to the first space-delimited word if a symbol
+  // ever starts with something the pattern doesn't cover.
+  function baseSymbol(name) {
+    const s = String(name == null ? "" : name).trim();
+    const m = s.match(/^([A-Za-z0-9&-]+)/);
+    return (m ? m[1] : s.split(" ")[0]).toUpperCase();
+  }
+
+  // Best tradable side of a symbol, and only if it actually pays. A row whose
+  // better side is still negative is not an opportunity, so it never earns a
+  // tile — the strip stays a list of money on the table, not a leaderboard of
+  // the least-bad losses.
+  function profitSide(r) {
+    const b = r.buy_total, s = r.sell_total;
+    const bOk = typeof b === "number" && !isNaN(b);
+    const sOk = typeof s === "number" && !isNaN(s);
+    if (!bOk && !sOk) return null;
+    const useBuy = bOk && (!sOk || b >= s);
+    const total = useBuy ? b : s;
+    if (!(total > 0)) return null;
+    return {
+      row:   r,
+      total: total,
+      // Buy-venue→sell-venue, matching the wording of the row's own Best
+      // Opportunity sentence.
+      dir:   useBuy ? "Alpha→Beta" : "Beta→Alpha",
+      cls:   useBuy ? "dir-ab" : "dir-ba",
+    };
+  }
+
+  function renderExtremes(rows) {
+    const top = [];
+    for (let i = 0; i < rows.length; i++) {
+      const p = profitSide(rows[i]);
+      if (p) top.push(p);
+    }
+    top.sort((a, b) => b.total - a.total);
+    top.length = Math.min(top.length, EX_COUNT);
+
+    const html = new Array(EX_COUNT);
+    for (let i = 0; i < EX_COUNT; i++) {
+      const p = top[i];
+      if (!p) {
+        html[i] = '<div class="ex-tile ex-empty"><span class="ex-value">—</span></div>';
+        continue;
+      }
+      // Full name and direction live on the tooltip — off the tile, not lost.
+      html[i] =
+        '<button type="button" class="ex-tile ' + p.cls + '" ' +
+        'data-symbol="' + escapeHtml(p.row.script_name) + '" ' +
+        'title="' + escapeHtml(p.row.script_name + " · " + p.dir) + '">' +
+        '<span class="ex-sym">' + escapeHtml(baseSymbol(p.row.script_name)) + '</span>' +
+        '<span class="ex-value ' + (p.total > 0 ? "pos" : "neg") + '">' + fmt(p.total) + '</span>' +
+        '</button>';
+    }
+    extremesEl.innerHTML = html.join("");
+  }
+
+  // Jump to the symbol behind a tile. It may be filtered out of the table
+  // (the strip ignores the filter by design), so clear the filter first.
+  let jumpSymbol = null;
+  let jumpTimer  = 0;
+
+  extremesEl.addEventListener("click", (evt) => {
+    const tile = evt.target.closest(".ex-tile[data-symbol]");
+    if (!tile) return;
+    const symbol = tile.getAttribute("data-symbol");
+
+    if (filterText && !symbol.toUpperCase().includes(filterText)) {
+      filterInput.value = "";
+      filterText = "";
+    }
+
+    jumpSymbol = symbol;
+    clearTimeout(jumpTimer);
+    jumpTimer = setTimeout(() => { jumpSymbol = null; scheduleRender(); }, 2500);
+
+    render();  // synchronous, so the row exists before we scroll to it
+    const row = rowsEl.querySelector("tr.jumped");
+    if (row) row.scrollIntoView({ block: "center", behavior: "smooth" });
+  });
+
   function render() {
     renderQueued = false;
     if (!latest || !latest.rows) return;
@@ -332,6 +486,7 @@
     const diffThreshold = latest.diff_threshold ?? 50;
     const rows = latest.rows;
     symbolCountEl.textContent = rows.length + " symbols";
+    renderExtremes(rows);
 
     const visible = filterText
       ? rows.filter(r => (r.script_name || "").toUpperCase().includes(filterText))
@@ -349,11 +504,11 @@
     for (let i = 0; i < visible.length; i++) {
       const r = visible[i];
       const rank = rows.indexOf(r) + 1;
-      const cls = rowStatusClass(r, diffThreshold);
+      const cls = rowStatusClass(r, diffThreshold) + (r.script_name === jumpSymbol ? " jumped" : "");
       const b2s = r.buy_to_sell ?? 0;
       const s2b = r.sell_to_buy ?? 0;
       html[i] =
-        '<tr class="' + cls + '">' +
+        '<tr class="' + cls + '" data-symbol="' + escapeHtml(r.script_name) + '">' +
         '<td class="center"><span class="' + rankClass(rank - 1) + '">#' + rank + '</span></td>' +
         '<td class="script">' + (r.highlighted ? '<span class="star">★</span>' : '') + escapeHtml(r.script_name) + '</td>' +
         '<td class="num ' + (r.buy_total > 0 ? "pos" : "neg") + '">' + fmt(r.buy_total) + '</td>' +
@@ -379,7 +534,8 @@
   const escDiv = document.createElement("div");
   function escapeHtml(s) {
     escDiv.textContent = s == null ? "" : String(s);
-    return escDiv.innerHTML;
+    // Quotes too: the same helper now fills data-symbol="…" attributes.
+    return escDiv.innerHTML.replace(/"/g, "&quot;");
   }
 
   function setStatus(state, text) {
