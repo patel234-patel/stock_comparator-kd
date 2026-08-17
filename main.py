@@ -13,14 +13,14 @@ from typing import Dict
 from config import (
     SYMBOLS, MARKET_OPEN, MARKET_CLOSE,
     REFRESH_INTERVAL,
-    ANGEL_ONE_CONFIG, MOTILAL_CONFIG,
+    GM_GLOBAL_CONFIG, MOTILAL_CONFIG,
     EXCEL_WORKBOOK_NAME, EXCEL_SHEET_NAME,
     ENABLE_EXCEL, DEMO_MODE,
     HIGHLIGHT_SYMBOLS,
     ENABLE_WEB_DASHBOARD, WEB_HOST, WEB_HTTP_PORT, WEB_WS_PORT, DIFF_THRESHOLD,
     SHARD, SHARD_COUNT, SHARD_LABEL,
 )
-from angel_feed import AngelOneFeed
+from gm_feed import GmGlobalFeed
 from motilal_feed import MotilalFeed
 from comparison_engine import ComparisonEngine
 from excel_live_writer import ExcelLiveWriter
@@ -81,8 +81,8 @@ def snapshot_changed(prev: list, curr: list) -> bool:
         return True
     for a, b in zip(prev, curr):
         if (a["script_name"] != b["script_name"] or
-                abs(a.get("angel_buy",   0) - b.get("angel_buy",   0)) > 0.001 or
-                abs(a.get("angel_sell",  0) - b.get("angel_sell",  0)) > 0.001 or
+                abs(a.get("gm_buy",      0) - b.get("gm_buy",      0)) > 0.001 or
+                abs(a.get("gm_sell",     0) - b.get("gm_sell",     0)) > 0.001 or
                 abs(a.get("motilal_buy", 0) - b.get("motilal_buy", 0)) > 0.001 or
                 abs(a.get("motilal_sell",0) - b.get("motilal_sell",0)) > 0.001):
             return True
@@ -91,7 +91,7 @@ def snapshot_changed(prev: list, curr: list) -> bool:
 
 def main():
     print("=" * 65)
-    print("  Real-Time Arbitrage Dashboard: Angel One vs Motilal Oswal")
+    print("  Real-Time Arbitrage Dashboard: GM Global vs Motilal Oswal")
     if DEMO_MODE:
         print("  ⚠️  DEMO MODE — using fake prices (set DEMO_MODE=False in config.py)")
     if SHARD:
@@ -106,14 +106,14 @@ def main():
     engine = ComparisonEngine(SYMBOLS)
 
     if not DEMO_MODE:
-        angel   = AngelOneFeed(ANGEL_ONE_CONFIG)
+        gm      = GmGlobalFeed(GM_GLOBAL_CONFIG)
         motilal = MotilalFeed(MOTILAL_CONFIG)
 
-        print("\n[1/3] Connecting to Angel One ...")
+        print("\n[1/3] Connecting to GM Global ...")
         try:
-            angel.connect()
+            gm.connect()
         except Exception as e:
-            log.error(f"Angel One connect failed: {e}")
+            log.error(f"GM Global connect failed: {e}")
 
         print("[2/3] Connecting to Motilal Oswal ...")
         try:
@@ -121,9 +121,9 @@ def main():
         except Exception as e:
             log.error(f"Motilal connect failed: {e}")
     else:
-        angel   = None
+        gm      = None
         motilal = None
-        print("\n[1/3] DEMO: skipping Angel One connection")
+        print("\n[1/3] DEMO: skipping GM Global connection")
         print("[2/3] DEMO: skipping Motilal connection")
 
     print("[3/3] Connecting to Excel (live workbook) ...")
@@ -175,22 +175,22 @@ def main():
 
             # ── Get prices ─────────────────────────────────────────────────────
             if DEMO_MODE:
-                angel_snap   = make_demo_snapshot()
+                gm_snap      = make_demo_snapshot()
                 motilal_snap = make_demo_snapshot()
             else:
-                angel_snap   = build_price_snapshot(angel,   SYMBOLS) if angel   else {}
+                gm_snap      = build_price_snapshot(gm,      SYMBOLS) if gm      else {}
                 motilal_snap = build_price_snapshot(motilal, SYMBOLS) if motilal else {}
 
-            if not angel_snap and not motilal_snap:
+            if not gm_snap and not motilal_snap:
                 print(
-                    f"\r  Waiting for data — angel:{len(angel_snap)}/{len(SYMBOLS)} "
+                    f"\r  Waiting for data — gm:{len(gm_snap)}/{len(SYMBOLS)} "
                     f"motilal:{len(motilal_snap)}/{len(SYMBOLS)}",
                     end="", flush=True,
                 )
                 time.sleep(REFRESH_INTERVAL)
                 continue
 
-            ranked = engine.compute(angel_snap, motilal_snap)
+            ranked = engine.compute(gm_snap, motilal_snap)
             if not ranked:
                 time.sleep(REFRESH_INTERVAL)
                 continue
@@ -246,8 +246,8 @@ def main():
         print("\n\nStopped by user.")
     finally:
         log.info("Disconnecting ...")
-        if angel:
-            try: angel.disconnect()
+        if gm:
+            try: gm.disconnect()
             except Exception: pass
         if motilal:
             try: motilal.disconnect()

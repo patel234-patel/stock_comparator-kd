@@ -70,7 +70,7 @@ ROW_HIGHLIGHT = rgb(255, 242, 0)   # bright yellow — watchlisted symbols
 
 HDR_DARK  = rgb(13,  51,  73)
 HDR_MO    = rgb(17,  85, 204)
-HDR_ANG   = rgb(15, 157,  88)
+HDR_GM    = rgb(15, 157,  88)
 HDR_DIFF  = rgb(180, 95,   6)
 HDR_RANK  = rgb(60,  60,  60)
 
@@ -82,7 +82,7 @@ BRONZE= rgb(205, 127,  50)
 DKGRN = rgb(0,  128,   0)
 DKRED = rgb(180,  0,   0)
 
-TOTAL_COLS = 11   # A=Rank B=Script C=AngBuy D=AngSell E=MoBuy F=MoSell G=B2S H=BuyTotal I=S2B J=SellTotal K=BestOpp
+TOTAL_COLS = 11   # A=Rank B=Script C=GmBuy D=GmSell E=MoBuy F=MoSell G=B2S H=BuyTotal I=S2B J=SellTotal K=BestOpp
 
 # Excel COM constants (avoids needing win32com.client.constants)
 XL_EXPRESSION  = 2     # xlExpression
@@ -149,7 +149,7 @@ class ExcelLiveWriter:
 
         # ── Row 1: Group labels ────────────────────────────────────────────────
         headers_r1 = [
-            "#", "SCRIPT NAME", "ANGEL ONE", "", "MOTILAL OSWAL", "",
+            "#", "SCRIPT NAME", "GM GLOBAL", "", "MOTILAL OSWAL", "",
             "DIFFERENCE", "", "DIFFERENCE", "", "BEST OPPORTUNITY",
         ]
         sh["A1"].value = headers_r1
@@ -162,7 +162,7 @@ class ExcelLiveWriter:
             if not cell.api.MergeCells:
                 cell.merge()
 
-        r1_colors = [HDR_RANK, HDR_DARK, HDR_ANG, HDR_ANG, HDR_MO, HDR_MO,
+        r1_colors = [HDR_RANK, HDR_DARK, HDR_GM, HDR_GM, HDR_MO, HDR_MO,
                      HDR_DIFF, HDR_DIFF, HDR_DIFF, HDR_DIFF, HDR_DARK]
         for i, color in enumerate(r1_colors):
             cell = sh[0, i]
@@ -311,8 +311,8 @@ class ExcelLiveWriter:
             values.append([
                 rank_label,
                 r["script_name"],
-                r["angel_buy"],
-                r["angel_sell"],
+                r["gm_buy"],
+                r["gm_sell"],
                 r["motilal_buy"],
                 r["motilal_sell"],
                 b2s,

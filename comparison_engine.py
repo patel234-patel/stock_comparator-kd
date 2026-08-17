@@ -1,7 +1,7 @@
 """
 comparison_engine.py — Price comparison and ranking engine
 ===========================================================
-Matches symbols from Angel One and Motilal Oswal,
+Matches symbols from GM Global and Motilal Oswal,
 calculates Buy-to-Sell and Sell-to-Buy differences,
 and returns rows sorted by best opportunity (highest absolute value).
 """
@@ -16,14 +16,13 @@ class ComparisonEngine:
         symbols: list of dicts with keys:
             name        — display name  e.g. "AUROPHARMA 28-JUL-2026"
             code        — script code   e.g. 61113
-            angel_token — Angel One token
             mo_scrip    — Motilal scrip code
         """
         self._symbols = symbols
 
     def compute(
         self,
-        angel_prices:   Dict[str, dict],   # keyed by name → {buy, sell}
+        gm_prices:      Dict[str, dict],   # keyed by name → {buy, sell}
         motilal_prices: Dict[str, dict],   # keyed by name → {buy, sell}
     ) -> List[dict]:
         """
@@ -32,30 +31,30 @@ class ComparisonEngine:
         Each row:
             script_name, script_code,
             motilal_buy, motilal_sell,
-            angel_buy,   angel_sell,
-            buy_to_sell  (motilal_buy - angel_sell),
-            sell_to_buy  (angel_buy - motilal_sell),
+            gm_buy,      gm_sell,
+            buy_to_sell  (motilal_buy - gm_sell),
+            sell_to_buy  (gm_buy - motilal_sell),
             best_opp     (label string)
         """
         rows = []
 
         for sym in self._symbols:
             name = sym["name"]
-            ap   = angel_prices.get(name)
+            gp   = gm_prices.get(name)
             mp   = motilal_prices.get(name)
 
-            if ap is None or mp is None:
+            if gp is None or mp is None:
                 continue
 
             motilal_buy  = mp.get("buy")
             motilal_sell = mp.get("sell")
-            angel_buy    = ap.get("buy")
-            angel_sell   = ap.get("sell")
+            gm_buy       = gp.get("buy")
+            gm_sell      = gp.get("sell")
 
-            # A price can legitimately be absent OR present-but-None — Angel
-            # returns buy/sell as None until a real bid/ask tick has arrived,
-            # and Motilal returns None until it has an ltp (its buy/sell are
-            # the ltp on both sides — see motilal_feed.get_quote).
+            # A price can legitimately be absent OR present-but-None — a GM
+            # Global tick can arrive without every field, and Motilal returns
+            # None until it has an ltp (its buy/sell are the ltp on both
+            # sides — see motilal_feed.get_quote).
             #
             # Skip the symbol rather than defaulting to 0.0: a 0.0 stand-in
             # manufactures a spread the size of the whole contract (buy
@@ -63,7 +62,7 @@ class ComparisonEngine:
             # number it would sort to the top and read as the single best
             # opportunity on screen. No data has to mean no row.
             if not all(isinstance(v, (int, float)) and not isinstance(v, bool)
-                       for v in (motilal_buy, motilal_sell, angel_buy, angel_sell)):
+                       for v in (motilal_buy, motilal_sell, gm_buy, gm_sell)):
                 continue
 
             lot_size = sym.get("lot_size", DEFAULT_LOT_SIZE)
@@ -75,11 +74,11 @@ class ComparisonEngine:
 
             
 
-            # Buy on Motilal, sell on Angel
-            buy_to_sell = round(motilal_buy - angel_sell, 4)
+            # Buy on Motilal, sell on GM Global
+            buy_to_sell = round(motilal_buy - gm_sell, 4)
 
-            # Buy on Angel, sell on Motilal
-            sell_to_buy = round(angel_buy - motilal_sell, 4)
+            # Buy on GM Global, sell on Motilal
+            sell_to_buy = round(gm_buy - motilal_sell, 4)
             buy_total = round(buy_to_sell * lot_size, 4)
             sell_total = round(sell_to_buy * lot_size, 4)
 
@@ -101,8 +100,8 @@ class ComparisonEngine:
                 "script_code":  sym["code"],
                 "motilal_buy":  motilal_buy,
                 "motilal_sell": motilal_sell,
-                "angel_buy":    angel_buy,
-                "angel_sell":   angel_sell,
+                "gm_buy":       gm_buy,
+                "gm_sell":      gm_sell,
                 "buy_to_sell": buy_to_sell,
                 "buy_total": buy_total,
                 "sell_to_buy": sell_to_buy,

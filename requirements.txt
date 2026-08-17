@@ -1,13 +1,14 @@
 # Core
 openpyxl>=3.1.0
 requests>=2.31.0
-websocket-client>=1.7.0
+websocket-client>=1.7.0   # GM Global tick feed (gm_feed.py) + Motilal WS
 pyotp>=2.9.0
 xlwings>=0.30.0     # drives the live Excel workbook via COM (Windows + Excel required)
 websockets>=12.0    # powers the live HTML dashboard (web_dashboard.py)
 
-# Angel One SmartAPI
-smartapi-python>=1.3.4
+# GM Global needs no SDK — gm_feed.py speaks its Socket.IO 2.x wire format
+# directly over websocket-client, because the modern python-socketio client
+# only supports Engine.IO 4 and their server is Engine.IO 3.
 
 # Motilal Oswal (vendored SDK in MOFSLOPENAPI.py)
 geocoder>=1.38.0
